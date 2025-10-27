@@ -1,0 +1,28 @@
+{
+  "name": "sanction-bot",
+  "version": "1.0.0",
+  "description": "Discord moderation bot with sanction management and SQLite logging.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "register:slash": "node src/registerCommands.js"
+  },
+  "keywords": [
+    "discord",
+    "moderation",
+    "sanctions",
+    "bot"
+  ],
+  "author": "d_114",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^9.0.0",
+    "dayjs": "^1.11.13",
+    "discord.js": "^14.16.3",
+    "ms": "^2.1.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
