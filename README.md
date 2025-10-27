@@ -1,17 +1,17 @@
 # Sanction Bot
 
-Bot de modération Discord avec gestion complète des sanctions, compatible commandes slash et préfixe.
+Discord moderation bot with full sanction management, supporting both slash and prefix commands.
 
 ## Configuration
 
-1. Copier `config.js` et remplacer les valeurs par défaut :
-   - `token` : token du bot Discord.
-   - `clientId` : identifiant de l'application.
-   - `guildId` : optionnel, pour enregistrer les slash commands sur un serveur spécifique.
-   - `ownerId` : identifiant du propriétaire principal du bot.
-   - `prefix` : préfixe des commandes texte.
-   - `color` et `footer` : personnalisation des embeds.
-2. Ajuster si besoin les options `enableSlashCommands`, `enablePrefixCommands` et `enforceReason`.
+1. Copy `config.js` and replace the placeholder values:
+   - `token`: Discord bot token.
+   - `clientId`: application client ID.
+   - `guildId`: optional, restricts slash command registration to a specific guild.
+   - `ownerId`: primary owner ID.
+   - `prefix`: prefix for text commands.
+   - `color` and `footer`: embed customization.
+2. Adjust feature toggles if needed: `enableSlashCommands`, `enablePrefixCommands`, `enforceReason`.
 
 ## Installation
 
@@ -19,47 +19,47 @@ Bot de modération Discord avec gestion complète des sanctions, compatible comm
 npm install
 ```
 
-> **Note :** `better-sqlite3` requiert les outils de build C++ sur Windows.
-> - Option recommandée : utiliser Node.js 20 LTS.
-> - Sinon, installer le workload "Desktop development with C++" des Visual Studio Build Tools.
+> **Note:** `better-sqlite3` requires C++ build tools on Windows.
+> - Recommended: use Node.js 20 LTS.
+> - Otherwise install the "Desktop development with C++" workload from Visual Studio Build Tools.
 
-## Utilisation
+## Usage
 
 ```powershell
 npm run start
 ```
 
-Pour enregistrer les commandes slash après modification :
+Re-register slash commands after any modification:
 
 ```powershell
 npm run register:slash
 ```
 
-## Fonctionnalités principales
+## Core Features
 
-- Ban, kick, tempban, mute, tempmute, warn, blacklist et tempblacklist.
-- Unban, unmute et unblacklist enregistrés en base.
-- Listing des sanctions par utilisateur.
-- Stockage SQLite détaillé : auteur, victime, raison, dates, durée, statut.
-- Gestion des owners (ajout/retrait/listing) avec owner principal défini.
-- Commandes disponibles en slash (`/ban`, `/kick`, `/mute`, etc.) et préfixe (`&ban`, `&kick`, `&tempban`, etc.).
-- Possibilité d'activer/désactiver indépendamment slash/prefix (`/botconfig toggle ...`).
-- Configuration fine des rôles autorisés, cooldowns et limites quotidiennes par action via `/botconfig` ou commandes préfixées `&config`.
-- Embeds homogènes avec couleur et footer définis dans `config.js`.
-- Blacklist utilisateurs pour bloquer l'accès au bot.
-- Processus automatique de levée des sanctions temporaires.
+- Ban, kick, tempban, mute, tempmute, warn, blacklist, and tempblacklist sanctions.
+- Unban, unmute, and unblacklist actions recorded in the database.
+- Sanction history per user with filtering options.
+- Detailed SQLite storage: actor, target, reason, timestamps, duration, status.
+- Owner management (add/remove/list) with a designated primary owner.
+- Slash commands (`/ban`, `/kick`, `/mute`, etc.) and prefix commands (`&ban`, `&kick`, `&tempban`, etc.).
+- Independent toggles for slash and prefix modes via `/botconfig toggle ...`.
+- Fine-grained configuration of authorized roles, cooldowns, and daily limits through `/botconfig` or `&config`.
+- Consistent embeds using the color and footer defined in `config.js`.
+- User blacklist to prevent access to bot commands.
+- Automatic expiration handling for temporary sanctions.
 
-## Commandes administratives
+## Administrative Commands
 
-- `/owner ajouter|retirer|liste` ou `!owner ajouter|retirer|liste`.
-- `/botconfig toggle|roles|cooldown|limite` ou `!config toggle|roles|cooldown|limit`.
-- `!listsanctions <utilisateur> [type]` ou `/listsanctions`.
+- `/owner add|remove|list` or `&owner add|remove|list`.
+- `/botconfig toggle|roles|cooldown|limit` or `&config toggle|roles|cooldown|limit`.
+- `&listsanctions <user> [type]` or `/listsanctions`.
 
-## Base de données
+## Database
 
-Le fichier SQLite est créé dans `data/sanctions.sqlite`. Pensez à sauvegarder ce fichier pour conserver l'historique.
+The SQLite file is created at `data/sanctions.sqlite`. Back up this file to preserve sanction history.
 
-## Développement
+## Development
 
-- Nodemon disponible via `npm run dev`.
-- Le service de sanctions réalise un scan toutes les 60 secondes pour lever automatiquement les sanctions expirées.
+- Nodemon available via `npm run dev`.
+- The sanction service scans every 60 seconds to lift expired temporary sanctions.
