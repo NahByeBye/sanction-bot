@@ -10,7 +10,10 @@ const ActionKeys = {
   BLACKLIST: 'sanction:blacklist',
   TEMPBLACKLIST: 'sanction:tempblacklist',
   UNBLACKLIST: 'sanction:unblacklist',
+  CLEAR_SANCTIONS: 'sanction:clear',
   LIST: 'sanction:list',
+  BANINFO: 'sanction:baninfo',
+  BLINFO: 'sanction:blinfo',
   CONFIGURE: 'admin:configure',
   OWNER_MANAGE: 'admin:owner'
 };

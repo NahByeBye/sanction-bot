@@ -1,5 +1,5 @@
 module.exports = [
-  require('./addOwner'),
-  require('./removeOwner'),
-  require('./listOwners')
+  require('./ownerManager'),
+  require('./backup'),
+  require('./protectUser')
 ];

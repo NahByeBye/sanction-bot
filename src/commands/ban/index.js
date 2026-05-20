@@ -1,5 +1,6 @@
 module.exports = [
   require('./ban'),
-  require('./tempban'),
-  require('./unban')
+  require('./unban'),
+  require('./baninfo'),
+  require('./banuser')
 ];

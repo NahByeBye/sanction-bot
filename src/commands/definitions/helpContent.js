@@ -38,16 +38,14 @@ const helpEntries = {
     category: 'sanctions',
     description: 'Bannit un membre définitivement ou pour une durée optionnelle.',
     usage: {
-      slash: '/ban membre:@utilisateur raison:<raison> [duree]',
       prefix: '&ban @utilisateur [durée] <raison>'
     },
     examples: {
-      slash: '/ban membre:@Toto raison:"Spam massif" duree:7d',
-      prefix: '&ban @Toto 7d Spam massif'
+      prefix: '&ban @Toto 24h Spam massif'
     },
     notes: [
-      'Durée optionnelle: laissez vide pour un ban permanent.',
-      'Le membre doit être bannissable et la raison est obligatoire.'
+      'Sans durée = ban permanent. Avec durée = unban automatique à l\'expiration.',
+      'Formats durée : 60s (secondes), 30m (minutes), 24h (heures), 7j (jours).'
     ]
   },
   kick: {
@@ -56,34 +54,14 @@ const helpEntries = {
     category: 'sanctions',
     description: 'Expulse un membre du serveur et consigne l\'action.',
     usage: {
-      slash: '/kick membre:@utilisateur raison:<raison>',
       prefix: '&kick @utilisateur <raison>'
     },
     examples: {
-      slash: '/kick membre:@Leia raison:"Provocations"',
       prefix: '&kick @Leia Provocations répétées'
     },
     notes: [
       'Le membre doit encore être présent sur le serveur et être expulsable.',
       'La raison est obligatoire si l\'option enforceReason est active.'
-    ]
-  },
-  tempban: {
-    key: 'tempban',
-    label: 'TempBan',
-    category: 'sanctions',
-    description: 'Bannit un membre pour une durée définie (requis).',
-    usage: {
-      slash: '/tempban membre:@utilisateur raison:<raison> duree:<durée>',
-      prefix: '&tempban @utilisateur <durée> <raison>'
-    },
-    examples: {
-      slash: '/tempban membre:@Lina raison:"DM publicité" duree:24h',
-      prefix: '&tempban @Lina 24h DM pub'
-    },
-    notes: [
-      'Durée obligatoire: formats supportés 30m, 12h, 7d, etc.',
-      'Refuse de s\'exécuter si une sanction de ban est déjà active.'
     ]
   },
   unban: {
@@ -92,32 +70,29 @@ const helpEntries = {
     category: 'revocations',
     description: 'Lève un ban actif et journalise la levée.',
     usage: {
-      slash: '/unban membre:@utilisateur raison:<raison>',
-      prefix: '&unban @utilisateur <raison>'
+      prefix: '&unban @utilisateur'
     },
     examples: {
-      slash: '/unban membre:@Kira raison:"Erreure"',
-      prefix: '&unban @Kira erreur de cible'
+      prefix: '&unban @Kira'
     },
     notes: [
-      'Nécessite qu\'un ban actif existe dans la base de données.',
-      'Enregistre un événement de levée lié à la sanction initiale.'
+      'Aucune raison requise ni affichée.',
+      'Débannit sur Discord. Si la personne est blacklistée, elle reste en BL et sera re-bannie à la prochaine arrivée.',
+      'Seul /unblacklist retire une blacklist.'
     ]
   },
   warn: {
     key: 'warn',
     label: 'Warn',
     category: 'sanctions',
-    description: 'Ajoute un avertissement dans l\'historique d\'un membre.',
+    description: 'Ajoute un avertissement via le même menu interactif que tempmute.',
     usage: {
-      slash: '/warn membre:@utilisateur raison:<raison>',
-      prefix: '&warn @utilisateur <raison>'
+      prefix: '&warn @utilisateur'
     },
     examples: {
-      slash: '/warn membre:@Jay raison:"Langage inapproprié"',
-      prefix: '&warn @Jay Langage inapproprié'
+      prefix: '-warn @Jay'
     },
-    notes: ['Pas de durée: le warn est purement informatif.']
+    notes: ['Catégorie → motif : la sanction est appliquée immédiatement, sans saisie supplémentaire.']
   },
   mute: {
     key: 'mute',
@@ -125,11 +100,9 @@ const helpEntries = {
     category: 'sanctions',
     description: 'Applique un timeout (conversation muette). Durée optionnelle.',
     usage: {
-      slash: '/mute membre:@utilisateur raison:<raison> [duree]',
       prefix: '&mute @utilisateur [durée] <raison>'
     },
     examples: {
-      slash: '/mute membre:@Noé raison:"Spam" duree:30m',
       prefix: '&mute @Noé 30m Spam emoji'
     },
     notes: [
@@ -140,76 +113,84 @@ const helpEntries = {
     key: 'tempmute',
     label: 'TempMute',
     category: 'sanctions',
-    description: 'Mute temporaire: la durée est obligatoire.',
+    description: 'Mute temporaire via menu catégorie puis durée (rôle Mute).',
     usage: {
-      slash: '/tempmute membre:@utilisateur raison:<raison> duree:<durée>',
-      prefix: '&tempmute @utilisateur <durée> <raison>'
+      prefix: '&tempmute @utilisateur'
     },
     examples: {
-      slash: '/tempmute membre:@Noa raison:"Spam vocal" duree:2h',
-      prefix: '&tempmute @Noa 2h Spam vocal'
+      prefix: '&tempmute @Noa'
     },
-    notes: ['Refuse la commande si aucune durée valide n\'est fournie.']
+    notes: ['Catégorie → durée : la sanction est appliquée immédiatement, sans saisie supplémentaire.', 'Utilise le rôle Mute, pas le timeout Discord.']
   },
   unmute: {
     key: 'unmute',
     label: 'Unmute',
     category: 'revocations',
-    description: 'Retire le timeout actif d\'un membre.',
+    description: 'Retire le mute d\'un membre.',
     usage: {
-      slash: '/unmute membre:@utilisateur raison:<raison>',
-      prefix: '&unmute @utilisateur <raison>'
+      prefix: '&unmute @utilisateur'
     },
     examples: {
-      slash: '/unmute membre:@Mina raison:"Sanction terminée"',
-      prefix: '&unmute @Mina fin de sanction'
+      prefix: '&unmute @Mina'
     },
-    notes: ['Vérifie qu\'un mute actif existe avant de lever la sanction.']
+    notes: [
+      'Aucune raison requise ni affichée.',
+      'Vérifie qu\'un mute actif existe avant de lever la sanction.',
+      'N\'enlève pas les timeouts, utilise &unto pour ça.'
+    ]
+  },
+  unto: {
+    key: 'unto',
+    label: 'Unto',
+    category: 'revocations',
+    description: 'Retire le timeout d\'un membre.',
+    usage: {
+      prefix: '&unto @utilisateur'
+    },
+    examples: {
+      prefix: '&unto @Mina'
+    },
+    notes: [
+      'Aucune raison requise ni affichée.',
+      'Vérifie qu\'un timeout actif existe avant de lever la sanction.',
+      'N\'enlève pas les mutes (rôle), utilise &unmute pour ça.'
+    ]
   },
   blacklist: {
     key: 'blacklist',
     label: 'Blacklist',
     category: 'sanctions',
-    description: 'Empêche un membre d\'utiliser le bot (sans durée).',
+    description: 'Sanction maximale : ban permanent du serveur, plus fort qu\'un ban classique.',
     usage: {
-      slash: '/blacklist membre:@utilisateur raison:<raison>',
-      prefix: '&blacklist @utilisateur <raison>'
+      prefix: '&bl — liste paginée\n&bl <id|@user> [durée] <raison>'
     },
     examples: {
-      slash: '/blacklist membre:@Spammer raison:"Abuse des commandes"',
-      prefix: '&blacklist @Spammer Abuse commandes'
+      prefix: '&bl\n&bl @Joe Récidive grave'
     },
-    notes: ['Le membre blacklisté ne peut plus exécuter de commandes (hors /owner).']
-  },
-  tempblacklist: {
-    key: 'tempblacklist',
-    label: 'TempBlacklist',
-    category: 'sanctions',
-    description: 'Blacklist temporaire: durée obligatoire.',
-    usage: {
-      slash: '/tempblacklist membre:@utilisateur raison:<raison> duree:<durée>',
-      prefix: '&tempblacklist @utilisateur <durée> <raison>'
-    },
-    examples: {
-      slash: '/tempblacklist membre:@BotAbuser raison:"Spam" duree:12h',
-      prefix: '&tempblacklist @BotAbuser 12h Spam commandes'
-    },
-    notes: ['Au terme de la durée, la blacklist est levée automatiquement.']
+    notes: [
+      'Sans argument : affiche la liste des blacklistés (10 par page, boutons << >>).',
+      'Sans durée = blacklist permanente. Avec durée = levée auto à l\'expiration.',
+      'Si un Owner bot blackliste quelqu\'un, seul un Owner peut le unblacklist.',
+      'Répondre à un message avec &bl ouvre la liste (ne cible pas l\'auteur).',
+      'Formats durée : 60s, 30m, 24h, 7j.'
+    ]
   },
   unblacklist: {
     key: 'unblacklist',
     label: 'Unblacklist',
     category: 'revocations',
-    description: 'Retire une blacklist active.',
+    description: 'Retire une blacklist serveur et débannit l\'utilisateur.',
     usage: {
-      slash: '/unblacklist membre:@utilisateur raison:<raison>',
-      prefix: '&unblacklist @utilisateur <raison>'
+      prefix: '&unbl @utilisateur'
     },
     examples: {
-      slash: '/unblacklist membre:@Zoé raison:"Pardon"',
-      prefix: '&unblacklist @Zoé comportement corrigé'
+      prefix: '&unbl @Zoé'
     },
-    notes: ['Met à jour le cache pour autoriser de nouveau les commandes.']
+    notes: [
+      'Aucune raison requise ni affichée.',
+      'Seule commande capable de lever une blacklist. Débannit du serveur.',
+      'Si la blacklist a été posée par un Owner bot, seul un Owner peut la lever.'
+    ]
   },
   listsanctions: {
     key: 'listsanctions',
@@ -217,59 +198,41 @@ const helpEntries = {
     category: 'history',
     description: 'Affiche les sanctions enregistrées pour un membre.',
     usage: {
-      slash: '/listsanctions membre:@utilisateur [type]',
       prefix: '&listsanctions @utilisateur [type]'
     },
     examples: {
-      slash: '/listsanctions membre:@Eli type:ban',
       prefix: '&listsanctions @Eli ban'
     },
-    notes: ['Affiche jusqu\'à 10 entrées, filtrables par type.']
+    notes: [
+      'Les Sanction ID (#1, #2, …) sont propres à chaque membre (pas globales au serveur).',
+      'Affiche l\'historique complet (actives et révoquées), filtrable par type.'
+    ]
   },
-  ownerAdd: {
-    key: 'ownerAdd',
-    label: 'Owner ajouter',
+  owner: {
+    key: 'owner',
+    label: 'Owner',
     category: 'owners',
-    description: 'Ajoute un owner secondaire au bot.',
+    description: 'Liste les owners ou bascule le statut owner d’un utilisateur.',
     usage: {
-      slash: '/owner ajouter membre:@utilisateur',
-      prefix: '&owner ajouter @utilisateur'
+      prefix: '&owner [id|@utilisateur]'
     },
     examples: {
-      slash: '/owner ajouter membre:@Staff',
-      prefix: '&owner ajouter @Staff'
+      prefix: '&owner @Staff'
     },
-    notes: ['Seuls les owners existants ou administrateurs Discord peuvent utiliser cette commande.']
+    notes: ['Sans argument : liste.', 'Avec ID : ajoute ou retire (toggle).']
   },
-  ownerRemove: {
-    key: 'ownerRemove',
-    label: 'Owner retirer',
+  backup: {
+    key: 'backup',
+    label: 'Backup',
     category: 'owners',
-    description: 'Retire un owner secondaire.',
+    description: 'Panneau interactif des sauvegardes.',
     usage: {
-      slash: '/owner retirer membre:@utilisateur',
-      prefix: '&owner retirer @utilisateur'
+      prefix: '&backup'
     },
     examples: {
-      slash: '/owner retirer membre:@Staff',
-      prefix: '&owner retirer @Staff'
+      prefix: '&backup'
     },
-    notes: ['Impossible de retirer l\'owner principal défini dans la configuration.']
-  },
-  ownerList: {
-    key: 'ownerList',
-    label: 'Owner liste',
-    category: 'owners',
-    description: 'Liste tous les owners connus.',
-    usage: {
-      slash: '/owner liste',
-      prefix: '&owner liste'
-    },
-    examples: {
-      slash: '/owner liste',
-      prefix: '&owner liste'
-    },
-    notes: ['Affiche un embed récapitulant les owners primaires et secondaires.']
+    notes: ['Boutons Now, Del (par numéro) et Clear (avec confirmation).']
   },
   configToggle: {
     key: 'configToggle',
@@ -277,14 +240,12 @@ const helpEntries = {
     category: 'config',
     description: 'Active ou désactive une option majeure du bot.',
     usage: {
-      slash: '/botconfig toggle fonction:<option> valeur:<bool>',
       prefix: '&config toggle <option> <on|off>'
     },
     examples: {
-      slash: '/botconfig toggle fonction:enableSlashCommands valeur:true',
-      prefix: '&config toggle enablePrefixCommands on'
+      prefix: '&config toggle enforceReason on'
     },
-    notes: ['Options disponibles: enableSlashCommands, enablePrefixCommands, enforceReason.']
+    notes: ['Configurez via le panneau /botconfig.']
   },
   configRoles: {
     key: 'configRoles',
@@ -292,11 +253,9 @@ const helpEntries = {
     category: 'config',
     description: 'Définit les rôles autorisés pour une action modération.',
     usage: {
-      slash: '/botconfig roles action:<action> mode:<set|clear> [role1..role5]',
       prefix: '&config roles <action> <@role...>'
     },
     examples: {
-      slash: '/botconfig roles action:sanction:ban mode:set role1:@Mod role2:@Admin',
       prefix: '&config roles sanction:ban @Mod @Admin'
     },
     notes: ['Utilisez le mode "clear" pour retirer tous les rôles configurés.']
@@ -307,11 +266,9 @@ const helpEntries = {
     category: 'config',
     description: 'Ajuste le cooldown d\'une action (en secondes).',
     usage: {
-      slash: '/botconfig cooldown action:<action> secondes:<valeur>',
       prefix: '&config cooldown <action> <secondes>'
     },
     examples: {
-      slash: '/botconfig cooldown action:sanction:ban secondes:60',
       prefix: '&config cooldown sanction:ban 60'
     },
     notes: ['Mettez 0 pour désactiver le cooldown.']
@@ -320,16 +277,44 @@ const helpEntries = {
     key: 'configLimit',
     label: 'Config limite',
     category: 'config',
-    description: 'Fixe une limite quotidienne pour une action.',
+    description: 'Fixe une limite d’utilisation pour une action, avec fenêtre personnalisable.',
     usage: {
-      slash: '/botconfig limit action:<action> valeur:<limite>',
-      prefix: '&config limit <action> <valeur>'
+      prefix: '&config limit <action> <valeur> [fenetre_en_minutes]'
     },
     examples: {
-      slash: '/botconfig limit action:sanction:warn valeur:10',
-      prefix: '&config limit sanction:warn 10'
+      prefix: '&config limit sanction:warn 10 20'
     },
-    notes: ['Utilisez 0 ou "reset" pour retirer la limite.']
+    notes: ['Utilisez 0 ou "reset" pour retirer la limite.', 'Fenêtre 0 = 24h par défaut.']
+  },
+  configBot: {
+    key: 'configBot',
+    label: 'Config bot',
+    category: 'config',
+    description: 'Panneau de configuration interactif pour owners et sous-owners.',
+    usage: {
+      slash: '/botconfig'
+    },
+    examples: {
+      slash: '/botconfig'
+    },
+    notes: [
+      'Commande slash uniquement (pas de préfixe).',
+      'Réservée au propriétaire principal et aux owners secondaires du bot.',
+      'Permet de configurer le bot avec des menus interactifs simples.'
+    ]
+  },
+  clearsanctions: {
+    key: 'clearsanctions',
+    label: 'Clear sanctions',
+    category: 'sanctions',
+    description: 'Révoque toutes les sanctions actives d\'un utilisateur (ban, mute, blacklist, etc.).',
+    usage: {
+      prefix: '&clear-sanctions @utilisateur raison'
+    },
+    examples: {
+      prefix: '&clear-sanctions @Membre Réhabilitation'
+    },
+    notes: ['Efface toutes les sanctions actives de l\'utilisateur dans le serveur.', 'La raison est obligatoire.', 'Configurable via /botconfig pour les permissions.', 'Nécessite la permission sanction:clear.']
   },
   help: {
     key: 'help',
@@ -337,11 +322,9 @@ const helpEntries = {
     category: 'assistance',
     description: 'Affiche ce menu interactif d\'aide.',
     usage: {
-      slash: '/help',
       prefix: '&help'
     },
     examples: {
-      slash: '/help',
       prefix: '&help'
     },
     notes: [

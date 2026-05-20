@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 
-const buildEmbed = (configService, { title, description, fields = [], thumbnail, timestamp = true, color, footerText, footerIcon }) => {
+const buildEmbed = (configService, { title, description, fields = [], thumbnail, timestamp = true, color, footerText, footerIcon, suppressFooter = false }) => {
   const embed = new EmbedBuilder();
   embed.setColor(color || configService.getColor());
   if (title) {
@@ -18,9 +18,11 @@ const buildEmbed = (configService, { title, description, fields = [], thumbnail,
   if (timestamp) {
     embed.setTimestamp(new Date());
   }
-  const footer = footerText || configService.getFooter();
-  if (footer) {
-    embed.setFooter({ text: footer, iconURL: footerIcon || null });
+  if (!suppressFooter) {
+    const footer = footerText || configService.getFooter();
+    if (footer) {
+      embed.setFooter({ text: footer, iconURL: footerIcon || null });
+    }
   }
   return embed;
 };

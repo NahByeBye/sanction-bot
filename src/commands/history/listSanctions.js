@@ -1,8 +1,11 @@
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { ActionKeys, SanctionTypes } = require('../../utils/actionKeys');
 const { buildEmbed } = require('../../utils/embedFactory');
-const { formatDuration } = require('../../utils/time');
+const { formatDuration, discordTimestamp } = require('../../utils/time');
 const { helpEntries } = require('../definitions/helpContent');
-const { cloneHelpData, buildUsageResponse } = require('../helpers/usageMessages');
+const { cloneHelpData, replyCommandError } = require('../helpers/usageMessages');
+
+const ITEMS_PER_PAGE = 5;
 
 const LIST_CHOICES = [
   { name: 'Tous', value: 'any' },
@@ -16,81 +19,65 @@ const LIST_CHOICES = [
   { name: 'TempBlacklist', value: SanctionTypes.TEMPBLACKLIST }
 ];
 
-const describeSanction = (sanction) => {
-  const isInstant = sanction.type === SanctionTypes.KICK;
-  const status = isInstant ? '🚪 Exécutée' : sanction.active ? '✅ Active' : '❎ Levée';
-  const duration = sanction.duration_ms ? formatDuration(sanction.duration_ms) : isInstant ? 'instantanée' : 'permanent';
-  const date = new Date(sanction.created_at).toLocaleString();
-  return `• #${sanction.id} • ${sanction.type} • ${status}\n  Durée: ${duration}\n  Date: ${date}\n  Raison: ${sanction.reason}`;
+const describeSanction = (sanction, memberIndex) => {
+  const typeDisplay = sanction.duration_ms
+    ? `${sanction.type} (${formatDuration(sanction.duration_ms)})`
+    : sanction.type;
+
+  const dateStr = sanction.created_at
+    ? discordTimestamp(sanction.created_at, 'f')
+    : 'N/A';
+
+  return `**Sanction ID #${memberIndex}** — ${typeDisplay}
+├ Raison : ${sanction.reason || 'N/A'}
+├ Date : ${dateStr}
+└ Statut : ${sanction.active ? ' Active' : ' Révoquée'}`;
 };
 
-const buildListingEmbed = (configService, targetTag, sanctions) =>
-  buildEmbed(configService, {
+const buildListingEmbed = (configService, targetTag, sanctions, indexMap, page = 1) => {
+  const totalPages = Math.ceil(sanctions.length / ITEMS_PER_PAGE) || 1;
+  const start = (page - 1) * ITEMS_PER_PAGE;
+  const end = start + ITEMS_PER_PAGE;
+  const paginatedSanctions = sanctions.slice(start, end);
+
+  const description = paginatedSanctions.length > 0
+    ? paginatedSanctions
+        .map((sanction) => describeSanction(sanction, indexMap.get(sanction.id)))
+        .join('\n\n')
+    : 'Aucune sanction.';
+
+  return buildEmbed(configService, {
     title: `Sanctions de ${targetTag}`,
-    description: sanctions.map(describeSanction).join('\n\n')
+    description: `**Total :** ${sanctions.length}\n\n${description}\n\n**Page ${page}/${totalPages}**`
   });
+};
+
+const buildPaginationRow = (currentPage, totalPages) => {
+  const row = new ActionRowBuilder();
+
+  if (totalPages <= 1) return null;
+
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId('listprev')
+      .setLabel('◀ Précédent')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(currentPage <= 1),
+    new ButtonBuilder()
+      .setCustomId('listnext')
+      .setLabel('Suivant ▶')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(currentPage >= totalPages)
+  );
+
+  return row;
+};
 
 const help = cloneHelpData(helpEntries.listsanctions);
 
 module.exports = {
-  standaloneSlash: true,
-  slashName: 'listsanctions',
-  registerSlash: (sub) =>
-    sub
-      .setName('listsanctions')
-      .setDescription('Lister les sanctions d\'un utilisateur')
-      .addUserOption((option) => option.setName('membre').setDescription('Utilisateur').setRequired(true))
-      .addStringOption((option) =>
-        option
-          .setName('type')
-          .setDescription('Filtrer par type de sanction')
-          .setRequired(false)
-          .addChoices(...LIST_CHOICES)
-      ),
-  handleSlash: async ({ interaction, registry, sanctionService, configService }) => {
-    const guild = interaction.guild;
-    if (!guild) {
-      await interaction.reply({
-        content: buildUsageResponse('Cette commande doit être utilisée dans un serveur.', help, 'slash'),
-        ephemeral: true
-      });
-      return;
-    }
-
-    const executorMember = interaction.member;
-    const targetUser = interaction.options.getUser('membre');
-    const typeFilter = interaction.options.getString('type');
-
-    const guard = await registry.runActionWithGuards({
-      source: interaction,
-      actionKey: ActionKeys.LIST,
-      executorMember,
-      interaction,
-      reason: 'Listing'
-    });
-    if (guard.blocked) {
-      return;
-    }
-
-    const sanctions = sanctionService.listSanctions(guild.id, targetUser.id, 25, 0);
-    const filtered = typeFilter && typeFilter !== 'any'
-      ? sanctions.filter((s) => s.type === typeFilter)
-      : sanctions;
-
-    if (filtered.length === 0) {
-      await interaction.reply({ content: 'Aucune sanction enregistrée pour cet utilisateur.', ephemeral: true });
-      return;
-    }
-
-    const embed = buildListingEmbed(
-      configService,
-      targetUser.tag || targetUser.username,
-      filtered.slice(0, 10)
-    );
-    await interaction.reply({ embeds: [embed], ephemeral: true });
-  },
   prefix: {
-    aliases: ['listsanctions', 'sanctions', 'list']
+    aliases: ['listsanctions', 'sanctions', 'sanction', 'list']
   },
   handlePrefix: async ({ message, args, registry, sanctionService, configService }) => {
     const guild = message.guild;
@@ -99,17 +86,13 @@ module.exports = {
     }
 
     const executorMember = message.member;
-    const userMention = args.shift();
-    if (!userMention) {
-      await message.reply(buildUsageResponse('Usage incorrect.', help, 'prefix'));
+    const commandPrefix = configService.getPrefix();
+    const target = await registry.resolveCommandTarget(message, args);
+    if (target.error) {
+      await message.reply(replyCommandError(configService, target.error, commandPrefix));
       return;
     }
-
-    const userId = registry.extractUserId(userMention);
-    if (!userId) {
-      await message.reply(buildUsageResponse("Impossible de déterminer l'utilisateur.", help, 'prefix'));
-      return;
-    }
+    const userId = target.userId;
 
     const guard = await registry.runActionWithGuards({
       source: message,
@@ -125,27 +108,80 @@ module.exports = {
     const typeFilter = args.shift();
     const targetUser = await message.client.users.fetch(userId).catch(() => null);
     if (!targetUser) {
-      await message.reply(buildUsageResponse('Utilisateur introuvable.', help, 'prefix'));
+      await message.reply(replyCommandError(configService, 'Utilisateur introuvable.', commandPrefix));
       return;
     }
 
-    const sanctions = sanctionService.listSanctions(guild.id, userId, 25, 0);
+    const indexMap = sanctionService.getMemberSanctionIndexMap(guild.id, userId);
+    const sanctions = sanctionService.listSanctionHistory(guild.id, userId, 100, 0);
     const filtered = typeFilter
       ? sanctions.filter((s) => s.type.toLowerCase() === typeFilter.toLowerCase())
       : sanctions;
 
     if (filtered.length === 0) {
-      await message.reply(buildUsageResponse('Aucune sanction trouvée.', help, 'prefix'));
+      await message.reply(replyCommandError(configService, 'Aucune sanction trouvée.', commandPrefix));
       return;
     }
 
     const embed = buildListingEmbed(
       configService,
       targetUser.tag || targetUser.username,
-      filtered.slice(0, 10)
+      filtered,
+      indexMap,
+      1
     );
     await message.reply({ embeds: [embed] });
   },
   actionKey: ActionKeys.LIST,
-  help
+  help,
+
+  handlePagination: async ({ interaction, registry, sanctionService, configService }) => {
+    const customId = interaction.customId;
+    if (customId !== 'listprev' && customId !== 'listnext') return false;
+
+    const message = interaction.message;
+    if (!message || !message.embeds.length) return false;
+
+    const embedDesc = message.embeds[0].description;
+    const pageMatch = embedDesc.match(/\*\*Page (\d+)\/(\d+)\*\*$/);
+    if (!pageMatch) return false;
+
+    let currentPage = parseInt(pageMatch[1], 10);
+    const totalPages = parseInt(pageMatch[2], 10);
+
+    if (customId === 'listprev') currentPage--;
+    else if (customId === 'listnext') currentPage++;
+
+    if (currentPage < 1 || currentPage > totalPages) return false;
+
+    const title = message.embeds[0].title || '';
+    const targetTag = title.replace('Sanctions de ', '');
+
+    const guild = interaction.guild;
+    if (!guild) return false;
+
+    let targetUserId = null;
+    try {
+      const members = await guild.members.fetch();
+      const found = members.find(m => (m.user.tag || m.user.username) === targetTag);
+      if (found) targetUserId = found.id;
+    } catch {
+      return false;
+    }
+
+    if (!targetUserId) return false;
+
+    const indexMap = sanctionService.getMemberSanctionIndexMap(guild.id, targetUserId);
+    const sanctions = sanctionService.listSanctionHistory(guild.id, targetUserId, 100, 0);
+
+    const embed = buildListingEmbed(configService, targetTag, sanctions, indexMap, currentPage);
+    const row = buildPaginationRow(currentPage, totalPages);
+
+    await interaction.update({
+      embeds: [embed],
+      components: row ? [row] : []
+    });
+
+    return true;
+  }
 };

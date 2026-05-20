@@ -1,390 +1,464 @@
 const { parseDuration, formatDuration } = require('../../utils/time');
+
 const { buildEmbed } = require('../../utils/embedFactory');
-const { cloneHelpData, buildUsageHint, buildUsageResponse } = require('./usageMessages');
+const {
+  buildBanSuccessEmbed,
+  buildMuteSuccessEmbed,
+  buildKickSuccessEmbed,
+  buildUnblacklistSuccessEmbed,
+  buildUnmuteSuccessEmbed,
+  buildAlreadyMutedEmbed,
+  buildAlreadyBannedEmbed,
+  isAlreadyMutedError,
+  isAlreadyBannedError,
+  INTERNAL_REVOKE_REASON
+} = require('../../utils/sanctionSuccessEmbeds');
+
+const { cloneHelpData, replyCommandError } = require('./usageMessages');
+
+
 
 const ensureReason = (reason) => (reason && reason.trim().length > 0 ? reason : 'Aucune raison fournie');
 
+
+
 const parseDurationFromArgs = (args) => {
+
   const token = args.shift();
+
   if (!token) {
+
     return { milliseconds: null, human: null, consumed: false };
+
   }
+
   const parsed = parseDuration(token);
+
   if (!parsed.milliseconds) {
+
     args.unshift(token);
+
     return { milliseconds: null, human: null, consumed: false };
+
   }
+
   return { ...parsed, consumed: true };
+
 };
+
+
 
 const defaultEmbedFields = (record, reason, includeDuration = true) => {
+
   const fields = [
-    { name: 'Utilisateur', value: `<@${record.target_id}>`, inline: true },
-    { name: 'Sanction ID', value: `#${record.id}`, inline: true }
+
+    { name: 'Utilisateur', value: `<@${record.target_id}>`, inline: true }
+
   ];
+
   if (includeDuration) {
+
     fields.push({ name: 'Durée', value: formatDuration(record.duration_ms), inline: true });
+
   }
+
   fields.push({ name: 'Raison', value: reason });
+
   return fields;
+
 };
 
-const defaultRevocationFields = (userId, sanction, reason) => [
+
+
+const defaultRevocationFields = (userId, reason) => [
+
   { name: 'Utilisateur', value: `<@${userId}>`, inline: true },
-  { name: 'Sanction levée', value: `#${sanction.id}`, inline: true },
+
   { name: 'Raison', value: reason }
+
 ];
 
+
+
 const createSanctionApplyCommand = (options) => {
+
   const {
-    slashParent: providedParent,
-    slashName,
+
     description,
-    targetOptionDescription,
-    reasonOptionDescription,
-    durationOption,
+
     actionKey,
+
     prefixAliases,
+
     embedTitle,
+
     includeDurationInEmbed = true,
+
+    applySuccessStyle,
+
     apply,
-    durationErrorMessage = 'Veuillez fournir une durée valide (ex: 7d, 12h).'
+
+    durationErrorMessage = 'Durée invalide.'
+
   } = options;
 
+
+
   const help = cloneHelpData(options.help);
-  const standaloneSlash = Boolean(options.standaloneSlash);
-  const slashParent = standaloneSlash ? null : providedParent;
 
-  const durationMode = durationOption?.mode ?? 'none';
+  const durationMode = options.durationOption?.mode ?? 'none';
 
-  const registerSlash = (sub) => {
-    sub
-      .setName(slashName)
-      .setDescription(description)
-      .addUserOption((option) =>
-        option.setName('membre').setDescription(targetOptionDescription).setRequired(true)
-      )
-      .addStringOption((option) =>
-        option.setName('raison').setDescription(reasonOptionDescription).setRequired(true)
-      );
-    if (durationMode !== 'none') {
-      sub.addStringOption((option) =>
-        option
-          .setName('duree')
-          .setDescription(durationOption.description)
-          .setRequired(durationMode === 'required')
-      );
-    }
-    return sub;
-  };
 
-  const handleSlash = async (context) => {
-    const { interaction, registry, sanctionService, configService } = context;
-    const guild = interaction.guild;
-    if (!guild) {
-      await interaction.reply({ content: 'Cette commande doit être utilisée dans un serveur.', ephemeral: true });
-      return;
-    }
-
-    const executorMember = interaction.member;
-    const targetUser = interaction.options.getUser('membre');
-    let reason = interaction.options.getString('raison');
-    const durationInput = durationMode === 'none' ? null : interaction.options.getString('duree');
-    const { milliseconds: durationMs } = durationMode === 'none' ? { milliseconds: null } : parseDuration(durationInput);
-
-    if (durationMode === 'required' && (!durationMs || durationMs <= 0)) {
-      await interaction.reply({ content: buildUsageResponse(durationErrorMessage, help, 'slash'), ephemeral: true });
-      return;
-    }
-
-    reason = ensureReason(reason);
-
-    const guard = await registry.runActionWithGuards({
-      source: interaction,
-      actionKey,
-      executorMember,
-      interaction,
-      reason,
-      durationMs,
-      usageHint: buildUsageHint(help, 'slash')
-    });
-    if (guard.blocked) {
-      return;
-    }
-
-    try {
-      const record = await apply({
-        sanctionService,
-        guild,
-        targetUser,
-        executorUser: interaction.user,
-        reason,
-        durationMs
-      });
-      const embed = buildEmbed(configService, {
-        title: embedTitle,
-        fields: defaultEmbedFields(record, reason, includeDurationInEmbed)
-      });
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.reply({ content: `Erreur: ${error.message}`, ephemeral: true }).catch(() => {});
-    }
-  };
 
   const handlePrefix = async (context) => {
+
     const { message, args, registry, sanctionService, configService } = context;
+
     const guild = message.guild;
+
     if (!guild) {
+
       return;
+
     }
+
+
 
     const executorMember = message.member;
-    const userMention = args.shift();
-    if (!userMention) {
-      await message.reply(buildUsageResponse('Précisez un utilisateur.', help, 'prefix'));
-      return;
-    }
 
-    const userId = registry.extractUserId(userMention);
-    if (!userId) {
-      await message.reply(buildUsageResponse("Impossible de déterminer l'utilisateur.", help, 'prefix'));
+    const commandPrefix = configService.getPrefix();
+
+    const target = await registry.resolveCommandTarget(message, args);
+    if (target.error) {
+      await message.reply(replyCommandError(configService, target.error, commandPrefix));
       return;
     }
+    const userId = target.userId;
 
     let durationMs = null;
+
     if (durationMode === 'required') {
+
       const token = args.shift();
+
       if (!token) {
-        await message.reply(buildUsageResponse(durationErrorMessage, help, 'prefix'));
+
+        await message.reply(replyCommandError(configService, durationErrorMessage, commandPrefix));
+
         return;
+
       }
+
       const parsed = parseDuration(token);
+
       if (!parsed.milliseconds) {
-        await message.reply(buildUsageResponse(durationErrorMessage, help, 'prefix'));
+
+        await message.reply(replyCommandError(configService, durationErrorMessage, commandPrefix));
+
         return;
+
       }
+
       durationMs = parsed.milliseconds;
+
     } else if (durationMode === 'optional' && args.length > 0) {
+
       const parsed = parseDurationFromArgs(args);
+
       if (parsed.consumed) {
+
         durationMs = parsed.milliseconds;
+
       }
+
     }
+
+
 
     const rawReason = args.join(' ');
+
     const guard = await registry.runActionWithGuards({
+
       source: message,
+
       actionKey,
+
+      commandKey: help.key,
+
       executorMember,
+
       message,
+
       reason: rawReason,
+
       durationMs,
-      usageHint: buildUsageHint(help, 'prefix')
+
     });
+
     if (guard.blocked) {
+
       return;
+
     }
 
+
+
     const targetUser = await message.client.users.fetch(userId).catch(() => null);
+
     if (!targetUser) {
-      await message.reply(buildUsageResponse("Utilisateur introuvable.", help, 'prefix'));
+
+      await message.reply(replyCommandError(configService, 'Utilisateur introuvable.', commandPrefix));
+
       return;
+
     }
+
+
 
     const reason = ensureReason(rawReason);
 
+
+
     try {
+
       const record = await apply({
+
         sanctionService,
+
         guild,
+
         targetUser,
+
         executorUser: message.author,
+
+        executorMember,
+
         reason,
+
         durationMs
+
       });
-      const embed = buildEmbed(configService, {
-        title: embedTitle,
-        fields: defaultEmbedFields(record, reason, includeDurationInEmbed)
-      });
+
+      let embed;
+      if (applySuccessStyle === 'ban') {
+        embed = buildBanSuccessEmbed(configService, targetUser.id, reason);
+      } else if (applySuccessStyle === 'mute') {
+        embed = buildMuteSuccessEmbed(configService, targetUser.id, reason, null);
+      } else if (applySuccessStyle === 'kick') {
+        embed = buildKickSuccessEmbed(configService, targetUser.id, reason);
+      } else {
+        embed = buildEmbed(configService, {
+          title: embedTitle,
+          fields: defaultEmbedFields({ target_id: targetUser.id, duration_ms: durationMs }, reason, includeDurationInEmbed)
+        });
+      }
+
       await message.reply({ embeds: [embed] });
+
     } catch (error) {
-      await message.reply(`Erreur: ${error.message}`);
+      if (isAlreadyMutedError(error)) {
+        await message.reply({ embeds: [buildAlreadyMutedEmbed(configService)] });
+        return;
+      }
+      if (isAlreadyBannedError(error)) {
+        await message.reply({ embeds: [buildAlreadyBannedEmbed(configService)] });
+        return;
+      }
+      await message.reply(replyCommandError(configService, error.message, commandPrefix));
     }
+
   };
 
+
+
   return {
+
     type: 'apply',
-    standaloneSlash,
-    slashParent,
-    slashName,
-    slashDescription: description,
-    registerSlash,
-    handleSlash,
+
+    description,
+
     prefix: prefixAliases && prefixAliases.length > 0 ? { aliases: prefixAliases } : null,
+
     handlePrefix,
+
     actionKey,
+
     help
+
   };
+
 };
+
+
 
 const createSanctionRevokeCommand = (options) => {
+
   const {
-    slashParent: providedParent,
-    slashName,
+
     description,
-    targetOptionDescription,
-    reasonOptionDescription,
+
     actionKey,
+
     prefixAliases,
+
     embedTitle,
+
     sanctionTypes,
+
+    revokeSuccessStyle,
+
     revoke
+
   } = options;
 
+
+
   const help = cloneHelpData(options.help);
-  const standaloneSlash = Boolean(options.standaloneSlash);
-  const slashParent = standaloneSlash ? null : providedParent;
 
-  const registerSlash = (sub) =>
-    sub
-      .setName(slashName)
-      .setDescription(description)
-      .addUserOption((option) =>
-        option.setName('membre').setDescription(targetOptionDescription).setRequired(true)
-      )
-      .addStringOption((option) =>
-        option.setName('raison').setDescription(reasonOptionDescription).setRequired(true)
-      );
 
-  const handleSlash = async (context) => {
-    const { interaction, registry, sanctionService, configService } = context;
-    const guild = interaction.guild;
-    if (!guild) {
-      await interaction.reply({ content: 'Cette commande doit être utilisée dans un serveur.', ephemeral: true });
-      return;
-    }
-
-    const executorMember = interaction.member;
-    const targetUser = interaction.options.getUser('membre');
-    const reason = ensureReason(interaction.options.getString('raison'));
-
-    const guard = await registry.runActionWithGuards({
-      source: interaction,
-      actionKey,
-      executorMember,
-      interaction,
-      reason,
-      usageHint: buildUsageHint(help, 'slash')
-    });
-    if (guard.blocked) {
-      return;
-    }
-
-    const sanction = sanctionService.findActiveSanction(guild.id, targetUser.id, sanctionTypes);
-    if (!sanction) {
-      await interaction.reply({ content: buildUsageResponse('Aucune sanction active trouvée pour cet utilisateur.', help, 'slash'), ephemeral: true });
-      return;
-    }
-
-    try {
-      await revoke({
-        sanctionService,
-        guild,
-        sanction,
-        executorUser: interaction.user,
-        reason
-      });
-      const embed = buildEmbed(configService, {
-        title: embedTitle,
-        fields: defaultRevocationFields(targetUser.id, sanction, reason)
-      });
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.reply({ content: `Erreur: ${error.message}`, ephemeral: true }).catch(() => {});
-    }
-  };
 
   const handlePrefix = async (context) => {
+
     const { message, args, registry, sanctionService, configService } = context;
+
     const guild = message.guild;
+
     if (!guild) {
+
       return;
+
     }
+
+
 
     const executorMember = message.member;
-    const userMention = args.shift();
-    if (!userMention) {
-      await message.reply(buildUsageResponse('Précisez un utilisateur.', help, 'prefix'));
+
+    const commandPrefix = configService.getPrefix();
+
+    const target = await registry.resolveCommandTarget(message, args);
+    if (target.error) {
+      await message.reply(replyCommandError(configService, target.error, commandPrefix));
       return;
     }
+    const userId = target.userId;
 
-    const userId = registry.extractUserId(userMention);
-    if (!userId) {
-      await message.reply(buildUsageResponse("Impossible de déterminer l'utilisateur.", help, 'prefix'));
-      return;
-    }
-
-    const rawReason = args.join(' ');
     const guard = await registry.runActionWithGuards({
+
       source: message,
+
       actionKey,
+
+      commandKey: help.key,
+
       executorMember,
+
       message,
-      reason: rawReason,
-      usageHint: buildUsageHint(help, 'prefix')
+
+      reason: '',
+
     });
+
     if (guard.blocked) {
+
       return;
+
     }
+
+
 
     const targetUser = await message.client.users.fetch(userId).catch(() => null);
+
     if (!targetUser) {
-      await message.reply(buildUsageResponse("Utilisateur introuvable.", help, 'prefix'));
+
+      await message.reply(replyCommandError(configService, 'Utilisateur introuvable.', commandPrefix));
+
       return;
+
     }
+
+
 
     const sanction = sanctionService.findActiveSanction(guild.id, userId, sanctionTypes);
+
     if (!sanction) {
-      await message.reply(buildUsageResponse('Aucune sanction active trouvée.', help, 'prefix'));
+
+      await message.reply(replyCommandError(configService, 'Aucune sanction active trouvée.', commandPrefix));
+
       return;
+
     }
 
-    const reason = ensureReason(rawReason);
+
+
+    const reason = INTERNAL_REVOKE_REASON;
+
+
 
     try {
+
       await revoke({
+
         sanctionService,
+
         guild,
+
         sanction,
+
         executorUser: message.author,
+
         reason
+
       });
-      const embed = buildEmbed(configService, {
-        title: embedTitle,
-        fields: defaultRevocationFields(userId, sanction, reason)
-      });
+
+      let embed;
+      if (revokeSuccessStyle === 'unblacklist') {
+        embed = buildUnblacklistSuccessEmbed(configService, userId);
+      } else if (revokeSuccessStyle === 'unmute') {
+        embed = buildUnmuteSuccessEmbed(configService, userId);
+      } else {
+        embed = buildEmbed(configService, {
+          title: embedTitle,
+          fields: defaultRevocationFields(userId, reason)
+        });
+      }
+
       await message.reply({ embeds: [embed] });
+
     } catch (error) {
-      await message.reply(`Erreur: ${error.message}`);
+
+      await message.reply(replyCommandError(configService, error.message, commandPrefix));
+
     }
+
   };
+
+
 
   return {
+
     type: 'revoke',
-    standaloneSlash,
-    slashParent,
-    slashName,
-    slashDescription: description,
-    registerSlash,
-    handleSlash,
+
+    description,
+
     prefix: prefixAliases && prefixAliases.length > 0 ? { aliases: prefixAliases } : null,
+
     handlePrefix,
+
     actionKey,
+
     help
+
   };
+
 };
 
+
+
 module.exports = {
+
   createSanctionApplyCommand,
+
   createSanctionRevokeCommand
+
 };
+

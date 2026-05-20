@@ -1,22 +1,59 @@
-const { ActionKeys } = require('../../utils/actionKeys');
 const { helpEntries } = require('../definitions/helpContent');
-const { cloneHelpData } = require('../helpers/usageMessages');
-const { createSanctionApplyCommand } = require('../helpers/createSanctionCommand');
+const {
+  startCategorizedSanctionFlowFromMessage
+} = require('../helpers/categorizedSanctionFlow');
 
-const help = cloneHelpData(helpEntries.warn);
+const ensureGuildAndPermission = async ({ guild, member, userId, registry, reply }) => {
+  if (!guild) {
+    await reply('Cette commande doit être utilisée dans un serveur.');
+    return false;
+  }
 
-module.exports = createSanctionApplyCommand({
-  standaloneSlash: true,
-  slashName: 'warn',
-  description: 'Avertir un membre',
-  targetOptionDescription: 'Utilisateur à avertir',
-  reasonOptionDescription: 'Raison du warn',
-  durationOption: { mode: 'none' },
-  actionKey: ActionKeys.WARN,
-  prefixAliases: ['warn'],
-  embedTitle: 'Warn appliqué',
-  includeDurationInEmbed: false,
-  apply: async ({ sanctionService, guild, targetUser, executorUser, reason }) =>
-    sanctionService.applyWarn({ guild, targetUser, executorUser, reason }),
-  help
-});
+  const canExecute = await registry.permissionService.canExecute(member, 'sanction:warn');
+  if (!canExecute && !registry.permissionService.isOwner(userId)) {
+    await reply("Vous n'avez pas la permission d'utiliser cette commande.");
+    return false;
+  }
+
+  return true;
+};
+
+module.exports = {
+  prefix: {
+    aliases: ['warn']
+  },
+  handlePrefix: async ({ message, args, registry, configService, sanctionService }) => {
+    const allowed = await ensureGuildAndPermission({
+      guild: message.guild,
+      member: message.member,
+      userId: message.author.id,
+      registry,
+      reply: (content) => message.reply(content)
+    });
+    if (!allowed) {
+      return;
+    }
+
+    const target = await registry.resolveCommandTarget(message, args);
+    if (target.error) {
+      const { replyCommandError } = require('../helpers/usageMessages');
+      await message.reply(replyCommandError(configService, target.error, configService.getPrefix()));
+      return;
+    }
+    const userId = target.userId;
+
+    const targetUser = await message.client.users.fetch(userId).catch(() => null);
+    if (!targetUser) {
+      await message.reply('Utilisateur introuvable.');
+      return;
+    }
+
+    await startCategorizedSanctionFlowFromMessage({
+      message,
+      configService,
+      targetUser,
+      flowPrefix: 'warn'
+    });
+  },
+  help: helpEntries.warn
+};

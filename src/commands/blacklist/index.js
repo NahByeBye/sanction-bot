@@ -1,5 +1,6 @@
 module.exports = [
   require('./blacklist'),
-  require('./tempblacklist'),
-  require('./unblacklist')
+  require('./unblacklist'),
+  require('./blinfo'),
+  require('./bluser')
 ];

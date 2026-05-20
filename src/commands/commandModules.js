@@ -1,10 +1,12 @@
 module.exports = [
   ...require('./ban'),
-  ...require('./kick'),
   ...require('./mute'),
-  require('./warn/warn'),
+  ...require('./warn'),
   ...require('./blacklist'),
-  require('./history/listSanctions'),
+  ...require('./clearsanctions'),
+  ...require('./history'),
   ...require('./owner'),
-  ...require('./config')
+  ...require('./config'),
+  ...require('./invite')
 ];
+

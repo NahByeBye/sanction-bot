@@ -1,26 +1,60 @@
-const { ActionKeys } = require('../../utils/actionKeys');
 const { helpEntries } = require('../definitions/helpContent');
-const { cloneHelpData } = require('../helpers/usageMessages');
-const { createSanctionApplyCommand } = require('../helpers/createSanctionCommand');
+const {
+  startCategorizedSanctionFlowFromMessage
+} = require('../helpers/categorizedSanctionFlow');
 
-const help = cloneHelpData(helpEntries.tempmute);
+const ensureGuildAndPermission = async ({ guild, member, userId, registry, reply }) => {
+  if (!guild) {
+    await reply('Cette commande doit être utilisée dans un serveur.');
+    return false;
+  }
 
-module.exports = createSanctionApplyCommand({
-  standaloneSlash: true,
-  slashName: 'tempmute',
-  description: 'Mute temporaire (timeout)',
-  targetOptionDescription: 'Utilisateur à mute',
-  reasonOptionDescription: 'Raison du mute',
-  durationOption: {
-    mode: 'required',
-    description: 'Durée du mute temporaire (ex: 1h, 5d).'
+  const canExecute = await registry.permissionService.canExecute(member, 'sanction:tempmute');
+  if (!canExecute && !registry.permissionService.isOwner(userId)) {
+    await reply("Vous n'avez pas la permission d'utiliser cette commande.");
+    return false;
+  }
+
+  return true;
+};
+
+module.exports = {
+  prefix: {
+    aliases: ['tempmute', 'tm']
   },
-  actionKey: ActionKeys.TEMPMUTE,
-  prefixAliases: ['tempmute', 'tmute'],
-  embedTitle: 'TempMute appliqué',
-  includeDurationInEmbed: true,
-  durationErrorMessage: 'Veuillez préciser une durée valide pour le tempmute (ex: 30m, 2h).',
-  apply: async ({ sanctionService, guild, targetUser, executorUser, reason, durationMs }) =>
-    sanctionService.applyMute({ guild, targetUser, executorUser, reason, durationMs }),
-  help
-});
+  handlePrefix: async ({ message, args, registry, configService, sanctionService }) => {
+    const allowed = await ensureGuildAndPermission({
+      guild: message.guild,
+      member: message.member,
+      userId: message.author.id,
+      registry,
+      reply: (content) => message.reply(content)
+    });
+    if (!allowed) {
+      return;
+    }
+
+    const target = await registry.resolveCommandTarget(message, args);
+    if (target.error) {
+      const { replyCommandError } = require('../helpers/usageMessages');
+      await message.reply(replyCommandError(configService, target.error, configService.getPrefix()));
+      return;
+    }
+    const userId = target.userId;
+
+    const targetUser = await message.client.users.fetch(userId).catch(() => null);
+    if (!targetUser) {
+      await message.reply('Utilisateur introuvable.');
+      return;
+    }
+
+    await startCategorizedSanctionFlowFromMessage({
+      message,
+      configService,
+      targetUser,
+      flowPrefix: 'tempmute',
+      sanctionService
+    });
+  },
+  help: helpEntries.tempmute
+};

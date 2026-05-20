@@ -5,20 +5,20 @@ class CooldownService {
     this.db = db;
   }
 
-  checkAndConsume(action, userId, { cooldownMs = 0, dailyLimit = null, now = Date.now() }) {
+  checkAndConsume(action, userId, { cooldownMs = 0, dailyLimit = null, limitWindowSeconds = 86400, now = Date.now() }) {
     let state = this.db.getCooldownState(action, userId);
 
     if (!state) {
       state = {
         lastUsed: 0,
         uses: 0,
-        resetAt: now + DAY_IN_MS
+        resetAt: now + limitWindowSeconds * 1000
       };
     }
 
     if (now >= state.resetAt) {
       state.uses = 0;
-      state.resetAt = now + DAY_IN_MS;
+      state.resetAt = now + limitWindowSeconds * 1000;
     }
 
     if (cooldownMs > 0) {

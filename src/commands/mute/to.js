@@ -4,22 +4,23 @@ const { cloneHelpData } = require('../helpers/usageMessages');
 const { createSanctionApplyCommand } = require('../helpers/createSanctionCommand');
 
 const help = cloneHelpData(helpEntries.mute);
+help.key = 'to';
+help.label = 'To';
+help.usage.prefix = '&To @utilisateur [durée] <raison>';
+help.examples.prefix = '&To @Noé 30m Spam emoji';
 
 module.exports = createSanctionApplyCommand({
-  standaloneSlash: true,
-  slashName: 'mute',
-  description: 'Mute (timeout) un membre',
-  targetOptionDescription: 'Utilisateur à mute',
-  reasonOptionDescription: 'Raison du mute',
+  description: 'Timeout un membre',
   durationOption: {
     mode: 'optional',
     description: 'Durée optionnelle (ex: 30m, 2h). Laisser vide pour appliquer la durée maximale.'
   },
   actionKey: ActionKeys.MUTE,
-  prefixAliases: ['mute'],
-  embedTitle: 'Mute appliqué',
+  prefixAliases: ['To'],
+  embedTitle: 'Timeout appliqué',
+  applySuccessStyle: 'mute',
   includeDurationInEmbed: true,
   apply: async ({ sanctionService, guild, targetUser, executorUser, reason, durationMs }) =>
-    sanctionService.applyMute({ guild, targetUser, executorUser, reason, durationMs }),
+    sanctionService.applyMute({ guild, targetUser, executorUser, reason, durationMs, muteType: 'timeout' }),
   help
 });

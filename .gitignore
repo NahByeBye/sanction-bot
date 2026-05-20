@@ -2,3 +2,14 @@ node_modules/
 .env
 npm-debug.log*
 .DS_Store
+
+# IDE
+.vs/
+
+# Database files
+data/sanctions.sqlite*
+data/sanctions.sqlite-shm
+data/sanctions.sqlite-wal
+
+# Backups
+data/backups/
